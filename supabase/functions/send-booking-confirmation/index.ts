@@ -18,17 +18,144 @@ interface BookingConfirmationRequest {
   bookingTime: string;
 }
 
+// Simple in-memory rate limiting (resets on function cold start)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 5; // Max 5 emails per booking
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour window
+
+function isRateLimited(bookingId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(bookingId);
+  
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(bookingId, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return false;
+  }
+  
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return true;
+  }
+  
+  entry.count++;
+  return false;
+}
+
+// Input validation functions
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
+}
+
+function isValidUUID(id: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+}
+
+function isValidDate(date: string): boolean {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  return dateRegex.test(date);
+}
+
+function isValidTime(time: string): boolean {
+  const timeRegex = /^\d{2}:\d{2}$/;
+  return timeRegex.test(time);
+}
+
+function sanitizeString(str: string, maxLength: number = 100): string {
+  return str.slice(0, maxLength).replace(/[<>]/g, '');
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { bookingId, customerName, customerEmail, serviceName, bookingDate, bookingTime }: BookingConfirmationRequest = await req.json();
+    const body = await req.json();
+    const { bookingId, customerName, customerEmail, serviceName, bookingDate, bookingTime } = body as BookingConfirmationRequest;
 
-    if (!customerEmail || !customerName || !serviceName || !bookingDate || !bookingTime) {
-      throw new Error("Missing required fields");
+    // Validate required fields
+    if (!customerEmail || !customerName || !serviceName || !bookingDate || !bookingTime || !bookingId) {
+      return new Response(
+        JSON.stringify({ error: "Puuttuvat tiedot" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
+
+    // Validate input formats
+    if (!isValidEmail(customerEmail)) {
+      return new Response(
+        JSON.stringify({ error: "Virheellinen sähköpostiosoite" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!isValidUUID(bookingId)) {
+      return new Response(
+        JSON.stringify({ error: "Virheellinen varaus-ID" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!isValidDate(bookingDate)) {
+      return new Response(
+        JSON.stringify({ error: "Virheellinen päivämäärä" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!isValidTime(bookingTime)) {
+      return new Response(
+        JSON.stringify({ error: "Virheellinen kellonaika" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Rate limiting per booking
+    if (isRateLimited(bookingId)) {
+      return new Response(
+        JSON.stringify({ error: "Liian monta pyyntöä" }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Verify booking exists and matches the provided details
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, customer_email, confirmation_sent")
+      .eq("id", bookingId)
+      .single();
+
+    if (bookingError || !booking) {
+      return new Response(
+        JSON.stringify({ error: "Varausta ei löydy" }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Verify email matches the booking
+    if (booking.customer_email !== customerEmail) {
+      return new Response(
+        JSON.stringify({ error: "Sähköposti ei täsmää" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Don't resend if already confirmed (unless explicitly needed)
+    if (booking.confirmation_sent) {
+      return new Response(
+        JSON.stringify({ success: true, message: "Vahvistus on jo lähetetty" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Sanitize display values
+    const safeCustomerName = sanitizeString(customerName);
+    const safeServiceName = sanitizeString(serviceName);
 
     // Format date for Finnish locale
     const formattedDate = new Date(bookingDate).toLocaleDateString('fi-FI', {
@@ -73,14 +200,14 @@ const handler = async (req: Request): Promise<Response> => {
               <p style="margin: 10px 0 0 0; opacity: 0.9;">Ajanvarausvahvistus</p>
             </div>
             <div class="content">
-              <p>Hei <strong>${customerName}</strong>,</p>
+              <p>Hei <strong>${safeCustomerName}</strong>,</p>
               <p>Kiitos ajanvarauksestasi! Varauksesi on vastaanotettu ja odotamme sinua.</p>
               
               <div class="booking-details">
                 <h3>📅 Varauksen tiedot</h3>
                 <div class="detail-row">
                   <span class="detail-label">Palvelu:</span>
-                  <span class="detail-value">${serviceName}</span>
+                  <span class="detail-value">${safeServiceName}</span>
                 </div>
                 <div class="detail-row">
                   <span class="detail-label">Päivämäärä:</span>
@@ -113,32 +240,29 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     const emailResult = await emailResponse.json();
-    console.log("Booking confirmation email sent:", emailResult);
 
     if (!emailResponse.ok) {
-      throw new Error(emailResult.message || "Failed to send email");
+      console.error("Email send failed:", emailResult);
+      return new Response(
+        JSON.stringify({ error: "Sähköpostin lähetys epäonnistui" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
     // Update booking to mark confirmation as sent
-    if (bookingId) {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
-      await supabase
-        .from("bookings")
-        .update({ confirmation_sent: true, status: 'confirmed' })
-        .eq("id", bookingId);
-    }
+    await supabase
+      .from("bookings")
+      .update({ confirmation_sent: true, status: 'confirmed' })
+      .eq("id", bookingId);
 
-    return new Response(JSON.stringify({ success: true, data: emailResult }), {
+    return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (error: any) {
-    console.error("Error sending booking confirmation:", error);
+  } catch (error: unknown) {
+    console.error("Error in booking confirmation:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Palvelinvirhe" }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

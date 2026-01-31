@@ -6,8 +6,17 @@ import { Calendar, Clock, User, Phone, Mail, Check, ChevronRight, ChevronLeft, L
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { z } from "zod";
 
 type Service = Tables<"services">;
+
+// Validation schema for booking form
+const bookingFormSchema = z.object({
+  name: z.string().trim().min(2, "Nimi on liian lyhyt").max(100, "Nimi on liian pitkä"),
+  email: z.string().trim().email("Virheellinen sähköpostiosoite").max(255),
+  phone: z.string().trim().regex(/^(\+?[0-9\s\-()]{8,20})?$/, "Virheellinen puhelinnumero"),
+  notes: z.string().max(500, "Lisätiedot ovat liian pitkät").optional(),
+});
 
 // Generate available times
 const generateTimeSlots = () => {
@@ -66,7 +75,6 @@ export default function Booking() {
         .order("category", { ascending: true });
 
       if (error) {
-        console.error("Error fetching services:", error);
         toast.error("Palveluiden lataus epäonnistui");
       } else {
         setServices(data || []);
@@ -77,12 +85,13 @@ export default function Booking() {
     fetchServices();
   }, []);
 
-  // Fetch booked slots when date changes
+  // Fetch booked slots when date changes - only fetch minimal data needed
   useEffect(() => {
     if (!selectedDate) return;
 
     const fetchBookedSlots = async () => {
       const dateStr = selectedDate.toISOString().split('T')[0];
+      // Only select booking_time to minimize data exposure
       const { data, error } = await supabase
         .from("bookings")
         .select("booking_time")
@@ -102,6 +111,15 @@ export default function Booking() {
   const handleSubmit = async () => {
     if (!selectedServiceData || !selectedDate || !selectedTime) return;
 
+    // Validate form data with Zod
+    const validationResult = bookingFormSchema.safeParse(formData);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      toast.error(firstError.message);
+      return;
+    }
+
+    const validatedData = validationResult.data;
     setIsSubmitting(true);
 
     try {
@@ -110,44 +128,54 @@ export default function Booking() {
         .from("bookings")
         .insert({
           service_id: selectedServiceData.id,
-          customer_name: formData.name,
-          customer_email: formData.email,
-          customer_phone: formData.phone || null,
+          customer_name: validatedData.name,
+          customer_email: validatedData.email,
+          customer_phone: validatedData.phone || null,
           booking_date: selectedDate.toISOString().split('T')[0],
           booking_time: selectedTime,
-          notes: formData.notes || null,
+          notes: validatedData.notes || null,
           status: "pending",
         })
         .select()
         .single();
 
-      if (bookingError) throw bookingError;
-
-      // Send confirmation email
-      try {
-        const { error: emailError } = await supabase.functions.invoke("send-booking-confirmation", {
-          body: {
-            bookingId: booking.id,
-            customerName: formData.name,
-            customerEmail: formData.email,
-            serviceName: selectedServiceData.name,
-            bookingDate: selectedDate.toISOString().split('T')[0],
-            bookingTime: selectedTime,
-          },
-        });
-
-        if (emailError) {
-          console.error("Email sending failed:", emailError);
-          // Don't fail the booking if email fails
+      if (bookingError) {
+        // Handle unique constraint violation (double-booking)
+        if (bookingError.code === '23505') {
+          toast.error("Tämä aika on juuri varattu. Valitse toinen aika.");
+          // Refresh available slots
+          const dateStr = selectedDate.toISOString().split('T')[0];
+          const { data } = await supabase
+            .from("bookings")
+            .select("booking_time")
+            .eq("booking_date", dateStr)
+            .neq("status", "cancelled");
+          if (data) {
+            setBookedSlots(data.map(b => b.booking_time));
+          }
+          setSelectedTime(null);
+          return;
         }
-      } catch (emailErr) {
-        console.error("Email error:", emailErr);
+        throw bookingError;
       }
+
+      // Send confirmation email (fire and forget - don't block on email)
+      supabase.functions.invoke("send-booking-confirmation", {
+        body: {
+          bookingId: booking.id,
+          customerName: validatedData.name,
+          customerEmail: validatedData.email,
+          serviceName: selectedServiceData.name,
+          bookingDate: selectedDate.toISOString().split('T')[0],
+          bookingTime: selectedTime,
+        },
+      }).catch(() => {
+        // Email failure is non-critical, silently ignore
+      });
 
       setStep(4);
       toast.success("Varaus tehty onnistuneesti!");
-    } catch (error: any) {
-      console.error("Booking error:", error);
+    } catch (error: unknown) {
       toast.error("Varauksen tekeminen epäonnistui. Yritä uudelleen.");
     } finally {
       setIsSubmitting(false);
