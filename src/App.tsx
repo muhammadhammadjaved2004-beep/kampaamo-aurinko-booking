@@ -13,6 +13,7 @@ import Gallery from "./pages/Gallery";
 import Booking from "./pages/Booking";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminSetup from "./pages/AdminSetup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             
             {/* Admin routes - hidden URL */}
             <Route path="/yllapito" element={<AdminLogin />} />
+            <Route path="/yllapito/setup" element={<AdminSetup />} />
             <Route
               path="/yllapito/varaukset"
               element={
