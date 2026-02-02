@@ -117,7 +117,7 @@ export default function AdminSetup() {
                 disabled={isLoading}
               />
               <p className="text-xs text-muted-foreground">
-                Asennuskoodi on: SALON2024ADMIN
+                Pyydä asennuskoodi järjestelmän ylläpitäjältä.
               </p>
             </div>
             <div className="space-y-2">
