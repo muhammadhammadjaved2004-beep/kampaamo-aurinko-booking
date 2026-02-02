@@ -13,8 +13,16 @@ Deno.serve(async (req) => {
   try {
     const { email, password, setupCode } = await req.json();
 
-    // Simple setup code protection - change this before deploying!
-    const SETUP_CODE = "SALON2024ADMIN";
+    // Setup code from environment variable for security
+    const SETUP_CODE = Deno.env.get("ADMIN_SETUP_CODE");
+    
+    if (!SETUP_CODE) {
+      console.error("ADMIN_SETUP_CODE not configured");
+      return new Response(
+        JSON.stringify({ error: "Setup code not configured. Contact administrator." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     if (setupCode !== SETUP_CODE) {
       return new Response(
