@@ -85,21 +85,18 @@ export default function Booking() {
     fetchServices();
   }, []);
 
-  // Fetch booked slots when date changes - only fetch minimal data needed
+  // Fetch booked slots when date changes using secure RPC function
   useEffect(() => {
     if (!selectedDate) return;
 
     const fetchBookedSlots = async () => {
       const dateStr = selectedDate.toISOString().split('T')[0];
-      // Only select booking_time to minimize data exposure
+      // Use RPC function that only returns time slots (no customer data)
       const { data, error } = await supabase
-        .from("bookings")
-        .select("booking_time")
-        .eq("booking_date", dateStr)
-        .neq("status", "cancelled");
+        .rpc("get_booked_slots", { check_date: dateStr });
 
       if (!error && data) {
-        setBookedSlots(data.map(b => b.booking_time));
+        setBookedSlots(data.map((slot: { booking_time: string }) => slot.booking_time));
       }
     };
 
@@ -143,15 +140,12 @@ export default function Booking() {
         // Handle unique constraint violation (double-booking)
         if (bookingError.code === '23505') {
           toast.error("Tämä aika on juuri varattu. Valitse toinen aika.");
-          // Refresh available slots
+          // Refresh available slots using secure RPC function
           const dateStr = selectedDate.toISOString().split('T')[0];
           const { data } = await supabase
-            .from("bookings")
-            .select("booking_time")
-            .eq("booking_date", dateStr)
-            .neq("status", "cancelled");
+            .rpc("get_booked_slots", { check_date: dateStr });
           if (data) {
-            setBookedSlots(data.map(b => b.booking_time));
+            setBookedSlots(data.map((slot: { booking_time: string }) => slot.booking_time));
           }
           setSelectedTime(null);
           return;
