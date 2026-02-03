@@ -126,6 +126,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_booking: {
+        Args: {
+          p_booking_date: string
+          p_booking_time: string
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_notes?: string
+          p_service_id: string
+        }
+        Returns: string
+      }
       get_booked_slots: {
         Args: { check_date: string }
         Returns: {
