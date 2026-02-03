@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
 import Index from "./pages/Index";
 import Services from "./pages/Services";
@@ -20,37 +21,39 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/palvelut" element={<Services />} />
-            <Route path="/meista" element={<About />} />
-            <Route path="/yhteystiedot" element={<Contact />} />
-            <Route path="/galleria" element={<Gallery />} />
-            <Route path="/ajanvaraus" element={<Booking />} />
-            
-            {/* Admin routes - hidden URL */}
-            <Route path="/yllapito" element={<AdminLogin />} />
-            <Route path="/yllapito/setup" element={<AdminSetup />} />
-            <Route
-              path="/yllapito/varaukset"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/palvelut" element={<Services />} />
+              <Route path="/meista" element={<About />} />
+              <Route path="/yhteystiedot" element={<Contact />} />
+              <Route path="/galleria" element={<Gallery />} />
+              <Route path="/ajanvaraus" element={<Booking />} />
+              
+              {/* Admin routes - hidden URL */}
+              <Route path="/yllapito" element={<AdminLogin />} />
+              <Route path="/yllapito/setup" element={<AdminSetup />} />
+              <Route
+                path="/yllapito/varaukset"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </LanguageProvider>
   </QueryClientProvider>
 );
 

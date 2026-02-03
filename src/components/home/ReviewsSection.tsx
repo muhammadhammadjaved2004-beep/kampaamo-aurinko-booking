@@ -1,24 +1,15 @@
 import { Star, Quote } from "lucide-react";
-
-const reviews = [
-  {
-    name: "Maria K.",
-    text: "Paras kampaamo Kumpulassa! Satu on todellinen ammattilainen ja aina ystävällinen. Olen käynyt täällä jo vuosia.",
-    rating: 5,
-  },
-  {
-    name: "Jukka L.",
-    text: "Erinomainen palvelu ja hyvä hinta-laatusuhde. Miesten leikkaus on aina onnistunut täydellisesti.",
-    rating: 5,
-  },
-  {
-    name: "Anna S.",
-    text: "Viihtyisä ja rauhallinen ilmapiiri. Hiusten värjäys onnistui juuri toivomallani tavalla. Suosittelen lämpimästi!",
-    rating: 5,
-  },
-];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export function ReviewsSection() {
+  const { t } = useLanguage();
+
+  const reviews = [
+    { name: "Maria K.", textKey: "review1.text", rating: 5 },
+    { name: "Jukka L.", textKey: "review2.text", rating: 5 },
+    { name: "Anna S.", textKey: "review3.text", rating: 5 },
+  ];
+
   return (
     <section className="py-16 lg:py-24 bg-foreground text-background">
       <div className="container mx-auto px-4">
@@ -32,10 +23,10 @@ export function ReviewsSection() {
             <span className="text-2xl font-bold text-gold">4.8/5</span>
           </div>
           <h2 className="font-serif text-3xl md:text-4xl font-bold text-background mb-4">
-            Mitä asiakkaamme sanovat
+            {t("reviews.title")}
           </h2>
           <p className="text-background/70 max-w-2xl mx-auto">
-            Olemme ylpeitä erinomaisesta asiakaspalvelustamme ja tyytyväisistä asiakkaistamme.
+            {t("reviews.description")}
           </p>
         </div>
 
@@ -52,7 +43,7 @@ export function ReviewsSection() {
                 ))}
               </div>
               <p className="text-background/90 mb-6 leading-relaxed">
-                "{review.text}"
+                "{t(review.textKey)}"
               </p>
               <p className="font-semibold text-gold">
                 {review.name}
