@@ -2,66 +2,68 @@ import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { ChevronRight, Clock } from "lucide-react";
-
-const services = [
-  {
-    category: "Hiustenleikkaukset",
-    items: [
-      { name: "Miesten hiustenleikkuu", price: "25 €", duration: "30 min", description: "Sisältää pesun ja muotoilun" },
-      { name: "Naisten hiustenleikkuu", price: "45 €", duration: "45 min", description: "Sisältää pesun, leikkauksen ja föönauksen" },
-      { name: "Lasten hiustenleikkuu (alle 12v)", price: "20 €", duration: "25 min", description: "Lapsille sopiva rento palvelu" },
-      { name: "Otsatukan leikkaus", price: "10 €", duration: "10 min", description: "Nopea otsatukan siistiminen" },
-    ],
-  },
-  {
-    category: "Parturipalvelut",
-    items: [
-      { name: "Parran muotoilu", price: "15 €", duration: "20 min", description: "Parran siistiminen ja muotoilu" },
-      { name: "Parran ajelu", price: "20 €", duration: "25 min", description: "Perinteinen parranajelu" },
-      { name: "Hiukset + parta", price: "35 €", duration: "45 min", description: "Kokonaisvaltainen miesten paketti" },
-    ],
-  },
-  {
-    category: "Värjäykset & käsittelyt",
-    items: [
-      { name: "Juuriväri", price: "65 €", duration: "90 min", description: "Tyvikasvun värjäys" },
-      { name: "Kokovärjäys lyhyt", price: "75 €", duration: "100 min", description: "Lyhyiden hiusten kokovärjäys" },
-      { name: "Kokovärjäys pitkä", price: "95 €", duration: "120 min", description: "Pitkien hiusten kokovärjäys" },
-      { name: "Raidat/highlights", price: "alkaen 85 €", duration: "120+ min", description: "Raitojen teko folio- tai kampatekniikalla" },
-      { name: "Permanentti", price: "alkaen 80 €", duration: "120+ min", description: "Pysyvä kiharra tai aalto" },
-    ],
-  },
-  {
-    category: "Kampaukset & muotoilu",
-    items: [
-      { name: "Juhlakampaus", price: "alkaen 50 €", duration: "45+ min", description: "Juhlatilaisuuksiin sopiva kampaus" },
-      { name: "Morsiuskampaus", price: "alkaen 100 €", duration: "90+ min", description: "Sisältää koekampauksen erikseen sovittavasti" },
-      { name: "Föönaus", price: "30 €", duration: "30 min", description: "Hiusten pesu ja föönmuotoilu" },
-      { name: "Suoristus", price: "35 €", duration: "40 min", description: "Hiusten pesu ja suoristus" },
-    ],
-  },
-  {
-    category: "Hoidot",
-    items: [
-      { name: "Tehohoito", price: "20 €", duration: "20 min", description: "Syväkosteuttava tai vahvistava hoito" },
-      { name: "Hiuspohjan hoito", price: "25 €", duration: "25 min", description: "Rauhoittava tai virkistävä hoito" },
-      { name: "Olaplex-hoito", price: "30 €", duration: "30 min", description: "Hiuksia korjaava erikoishoito" },
-    ],
-  },
-];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Services() {
+  const { t, language } = useLanguage();
+
+  const services = [
+    {
+      category: t("servicesPage.category.haircuts"),
+      items: [
+        { name: t("services.men"), price: "25 €", duration: "30 min", description: language === 'fi' ? "Sisältää pesun ja muotoilun" : "Includes wash and styling" },
+        { name: t("services.women"), price: "45 €", duration: "45 min", description: language === 'fi' ? "Sisältää pesun, leikkauksen ja föönauksen" : "Includes wash, cut and blow-dry" },
+        { name: t("services.children") + " (<12)", price: "20 €", duration: "25 min", description: language === 'fi' ? "Lapsille sopiva rento palvelu" : "Relaxed service suitable for children" },
+        { name: language === 'fi' ? "Otsatukan leikkaus" : "Bangs trim", price: "10 €", duration: "10 min", description: language === 'fi' ? "Nopea otsatukan siistiminen" : "Quick bangs trim" },
+      ],
+    },
+    {
+      category: t("servicesPage.category.barber"),
+      items: [
+        { name: t("services.beard"), price: "15 €", duration: "20 min", description: language === 'fi' ? "Parran siistiminen ja muotoilu" : "Beard trimming and shaping" },
+        { name: language === 'fi' ? "Parran ajelu" : "Beard shave", price: "20 €", duration: "25 min", description: language === 'fi' ? "Perinteinen parranajelu" : "Traditional beard shave" },
+        { name: language === 'fi' ? "Hiukset + parta" : "Hair + beard", price: "35 €", duration: "45 min", description: language === 'fi' ? "Kokonaisvaltainen miesten paketti" : "Complete men's package" },
+      ],
+    },
+    {
+      category: t("servicesPage.category.coloring"),
+      items: [
+        { name: language === 'fi' ? "Juuriväri" : "Root color", price: "65 €", duration: "90 min", description: language === 'fi' ? "Tyvikasvun värjäys" : "Root growth coloring" },
+        { name: language === 'fi' ? "Kokovärjäys lyhyt" : "Full color (short)", price: "75 €", duration: "100 min", description: language === 'fi' ? "Lyhyiden hiusten kokovärjäys" : "Full coloring for short hair" },
+        { name: language === 'fi' ? "Kokovärjäys pitkä" : "Full color (long)", price: "95 €", duration: "120 min", description: language === 'fi' ? "Pitkien hiusten kokovärjäys" : "Full coloring for long hair" },
+        { name: language === 'fi' ? "Raidat/highlights" : "Highlights", price: t("services.from") + " 85 €", duration: "120+ min", description: language === 'fi' ? "Raitojen teko folio- tai kampatekniikalla" : "Foil or comb technique highlights" },
+        { name: language === 'fi' ? "Permanentti" : "Perm", price: t("services.from") + " 80 €", duration: "120+ min", description: language === 'fi' ? "Pysyvä kiharra tai aalto" : "Permanent curls or waves" },
+      ],
+    },
+    {
+      category: t("servicesPage.category.styling"),
+      items: [
+        { name: language === 'fi' ? "Juhlakampaus" : "Special occasion styling", price: t("services.from") + " 50 €", duration: "45+ min", description: language === 'fi' ? "Juhlatilaisuuksiin sopiva kampaus" : "Styling for special occasions" },
+        { name: language === 'fi' ? "Morsiuskampaus" : "Bridal styling", price: t("services.from") + " 100 €", duration: "90+ min", description: language === 'fi' ? "Sisältää koekampauksen erikseen sovittavasti" : "Includes trial styling by arrangement" },
+        { name: language === 'fi' ? "Föönaus" : "Blow-dry", price: "30 €", duration: "30 min", description: language === 'fi' ? "Hiusten pesu ja föönmuotoilu" : "Wash and blow-dry styling" },
+        { name: language === 'fi' ? "Suoristus" : "Straightening", price: "35 €", duration: "40 min", description: language === 'fi' ? "Hiusten pesu ja suoristus" : "Wash and straightening" },
+      ],
+    },
+    {
+      category: t("servicesPage.category.treatments"),
+      items: [
+        { name: language === 'fi' ? "Tehohoito" : "Deep treatment", price: "20 €", duration: "20 min", description: language === 'fi' ? "Syväkosteuttava tai vahvistava hoito" : "Deep moisturizing or strengthening" },
+        { name: language === 'fi' ? "Hiuspohjan hoito" : "Scalp treatment", price: "25 €", duration: "25 min", description: language === 'fi' ? "Rauhoittava tai virkistävä hoito" : "Soothing or refreshing treatment" },
+        { name: "Olaplex", price: "30 €", duration: "30 min", description: language === 'fi' ? "Hiuksia korjaava erikoishoito" : "Hair repair special treatment" },
+      ],
+    },
+  ];
+
   return (
     <Layout>
       {/* Hero */}
       <section className="py-16 lg:py-24 bg-gradient-warm">
         <div className="container mx-auto px-4 text-center">
           <h1 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Palvelut & Hinnasto
+            {t("servicesPage.title")}
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Tarjoamme laajan valikoiman kampaamopalveluita koko perheelle. 
-            Kaikki hinnat sisältävät ammattitaitoisen konsultaation.
+            {t("servicesPage.description")}
           </p>
         </div>
       </section>
@@ -106,9 +108,7 @@ export default function Services() {
           {/* Note */}
           <div className="mt-16 p-6 bg-primary/5 rounded-xl border border-primary/20">
             <p className="text-muted-foreground text-sm">
-              <strong className="text-foreground">Huom:</strong> Hinnat ovat suuntaa-antavia ja voivat vaihdella hiusten pituuden ja paksuuden mukaan. 
-              Pyydämme vahvistamaan lopullisen hinnan varauksen yhteydessä tai paikan päällä. 
-              Pitkille ja erityisen paksuille hiuksille voidaan lisätä lisämaksu.
+              <strong className="text-foreground">{t("servicesPage.note")}</strong> {t("servicesPage.noteText")}
             </p>
           </div>
         </div>
@@ -118,21 +118,21 @@ export default function Services() {
       <section className="py-16 lg:py-24 bg-foreground text-background">
         <div className="container mx-auto px-4 text-center">
           <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4">
-            Haluatko varata ajan?
+            {t("servicesPage.cta.title")}
           </h2>
           <p className="text-background/70 text-lg mb-8 max-w-xl mx-auto">
-            Varaa aika helposti verkossa tai soita meille suoraan.
+            {t("servicesPage.cta.description")}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild variant="hero" size="lg">
               <Link to="/ajanvaraus">
-                Varaa aika verkossa
+                {t("servicesPage.cta.bookOnline")}
                 <ChevronRight className="w-4 h-4" />
               </Link>
             </Button>
             <Button asChild variant="heroOutline" size="lg">
               <a href="tel:+358975721117">
-                Soita: 09 757 2117
+                {t("servicesPage.cta.call")}: 09 757 2117
               </a>
             </Button>
           </div>

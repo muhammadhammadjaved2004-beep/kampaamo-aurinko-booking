@@ -2,19 +2,22 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Phone, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
-
-const navLinks = [
-  { href: "/", label: "Etusivu" },
-  { href: "/palvelut", label: "Palvelut" },
-  { href: "/meista", label: "Meistä" },
-  { href: "/galleria", label: "Galleria" },
-  { href: "/yhteystiedot", label: "Yhteystiedot" },
-];
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { t } = useLanguage();
+
+  const navLinks = [
+    { href: "/", label: t("nav.home") },
+    { href: "/palvelut", label: t("nav.services") },
+    { href: "/meista", label: t("nav.about") },
+    { href: "/galleria", label: t("nav.gallery") },
+    { href: "/yhteystiedot", label: t("nav.contact") },
+  ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50 shadow-soft">
@@ -27,7 +30,7 @@ export function Header() {
             </div>
             <div className="flex flex-col">
               <span className="font-serif text-xl font-bold text-foreground">
-                Kampaamo
+                Salon
               </span>
               <span className="font-serif text-lg font-semibold text-gradient-gold -mt-1">
                 Amarillo
@@ -58,23 +61,27 @@ export function Header() {
 
           {/* Desktop CTA */}
           <div className="hidden lg:flex items-center gap-4">
+            <LanguageToggle />
             <a href="tel:+358975721117" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors">
               <Phone className="w-4 h-4" />
               <span>09 757 2117</span>
             </a>
             <Button asChild variant="gold" size="default">
-              <Link to="/ajanvaraus">Varaa aika</Link>
+              <Link to="/ajanvaraus">{t("nav.book")}</Link>
             </Button>
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden p-2 text-foreground hover:text-primary transition-colors"
-            aria-label="Toggle menu"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="lg:hidden flex items-center gap-2">
+            <LanguageToggle />
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="p-2 text-foreground hover:text-primary transition-colors"
+              aria-label="Toggle menu"
+            >
+              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Navigation */}
@@ -103,7 +110,7 @@ export function Header() {
             <div className="pt-2 mt-2 border-t border-border">
               <Button asChild variant="gold" size="lg" className="w-full">
                 <Link to="/ajanvaraus" onClick={() => setIsOpen(false)}>
-                  Varaa aika
+                  {t("nav.book")}
                 </Link>
               </Button>
             </div>

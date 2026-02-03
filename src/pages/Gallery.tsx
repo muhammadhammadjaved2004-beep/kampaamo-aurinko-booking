@@ -1,28 +1,36 @@
 import { Layout } from "@/components/layout/Layout";
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // Placeholder gallery images
 const galleryImages = [
-  { id: 1, src: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&h=600&fit=crop", alt: "Kampaamotilat", category: "Tilat" },
-  { id: 2, src: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=600&fit=crop", alt: "Naisten kampaus", category: "Kampaukset" },
-  { id: 3, src: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=600&h=600&fit=crop", alt: "Miesten leikkaus", category: "Leikkaukset" },
-  { id: 4, src: "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=600&h=600&fit=crop", alt: "Hiusten värjäys", category: "Värjäykset" },
-  { id: 5, src: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=600&h=600&fit=crop", alt: "Parturituoli", category: "Tilat" },
-  { id: 6, src: "https://images.unsplash.com/photo-1559599101-f09722fb4948?w=600&h=600&fit=crop", alt: "Juhlakampaus", category: "Kampaukset" },
-  { id: 7, src: "https://images.unsplash.com/photo-1492106087820-71f1a00d2b11?w=600&h=600&fit=crop", alt: "Naisten tyyli", category: "Leikkaukset" },
-  { id: 8, src: "https://images.unsplash.com/photo-1634449571010-02389ed0f9b0?w=600&h=600&fit=crop", alt: "Värikäs tulos", category: "Värjäykset" },
+  { id: 1, src: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&h=600&fit=crop", alt: "Salon interior", categoryKey: "gallery.spaces" },
+  { id: 2, src: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&h=600&fit=crop", alt: "Women's styling", categoryKey: "gallery.styles" },
+  { id: 3, src: "https://images.unsplash.com/photo-1605497788044-5a32c7078486?w=600&h=600&fit=crop", alt: "Men's haircut", categoryKey: "gallery.cuts" },
+  { id: 4, src: "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=600&h=600&fit=crop", alt: "Hair coloring", categoryKey: "gallery.colors" },
+  { id: 5, src: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?w=600&h=600&fit=crop", alt: "Barber chair", categoryKey: "gallery.spaces" },
+  { id: 6, src: "https://images.unsplash.com/photo-1559599101-f09722fb4948?w=600&h=600&fit=crop", alt: "Special occasion styling", categoryKey: "gallery.styles" },
+  { id: 7, src: "https://images.unsplash.com/photo-1492106087820-71f1a00d2b11?w=600&h=600&fit=crop", alt: "Women's style", categoryKey: "gallery.cuts" },
+  { id: 8, src: "https://images.unsplash.com/photo-1634449571010-02389ed0f9b0?w=600&h=600&fit=crop", alt: "Colorful result", categoryKey: "gallery.colors" },
 ];
 
-const categories = ["Kaikki", "Tilat", "Leikkaukset", "Kampaukset", "Värjäykset"];
-
 export default function Gallery() {
-  const [selectedCategory, setSelectedCategory] = useState("Kaikki");
+  const { t } = useLanguage();
+  const [selectedCategory, setSelectedCategory] = useState("gallery.all");
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  const filteredImages = selectedCategory === "Kaikki"
+  const categories = [
+    { key: "gallery.all", label: t("gallery.all") },
+    { key: "gallery.spaces", label: t("gallery.spaces") },
+    { key: "gallery.cuts", label: t("gallery.cuts") },
+    { key: "gallery.styles", label: t("gallery.styles") },
+    { key: "gallery.colors", label: t("gallery.colors") },
+  ];
+
+  const filteredImages = selectedCategory === "gallery.all"
     ? galleryImages
-    : galleryImages.filter(img => img.category === selectedCategory);
+    : galleryImages.filter(img => img.categoryKey === selectedCategory);
 
   return (
     <Layout>
@@ -30,10 +38,10 @@ export default function Gallery() {
       <section className="py-16 lg:py-24 bg-gradient-warm">
         <div className="container mx-auto px-4 text-center">
           <h1 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Galleria
+            {t("gallery.title")}
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Tutustu töihimme ja tilojemme tunnelmaan. Jokainen kuva kertoo tarinan ammattitaidostamme ja intohimostamme.
+            {t("gallery.description")}
           </p>
         </div>
       </section>
@@ -45,15 +53,15 @@ export default function Gallery() {
           <div className="flex flex-wrap justify-center gap-3 mb-12">
             {categories.map((category) => (
               <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
+                key={category.key}
+                onClick={() => setSelectedCategory(category.key)}
                 className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
-                  selectedCategory === category
+                  selectedCategory === category.key
                     ? "bg-primary text-primary-foreground shadow-md"
                     : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border border-border"
                 }`}
               >
-                {category}
+                {category.label}
               </button>
             ))}
           </div>
@@ -82,7 +90,7 @@ export default function Gallery() {
 
           {filteredImages.length === 0 && (
             <p className="text-center text-muted-foreground py-12">
-              Ei kuvia tässä kategoriassa.
+              {t("gallery.empty")}
             </p>
           )}
         </div>
@@ -102,7 +110,7 @@ export default function Gallery() {
           </button>
           <img
             src={lightboxImage.replace("w=600&h=600", "w=1200&h=1200")}
-            alt="Suurennettu kuva"
+            alt="Enlarged image"
             className="max-w-full max-h-[90vh] rounded-lg shadow-elevated"
             onClick={(e) => e.stopPropagation()}
           />

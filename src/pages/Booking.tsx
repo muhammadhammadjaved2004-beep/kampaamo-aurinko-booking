@@ -1,22 +1,15 @@
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Calendar, Clock, User, Phone, Mail, Check, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { z } from "zod";
 
 type Service = Tables<"services">;
-
-// Validation schema for booking form
-const bookingFormSchema = z.object({
-  name: z.string().trim().min(2, "Nimi on liian lyhyt").max(100, "Nimi on liian pitkä"),
-  email: z.string().trim().email("Virheellinen sähköpostiosoite").max(255),
-  phone: z.string().trim().regex(/^(\+?[0-9\s\-()]{8,20})?$/, "Virheellinen puhelinnumero"),
-  notes: z.string().max(500, "Lisätiedot ovat liian pitkät").optional(),
-});
 
 // Generate available times
 const generateTimeSlots = () => {
@@ -50,6 +43,7 @@ const generateDates = () => {
 const availableDates = generateDates();
 
 export default function Booking() {
+  const { t, language } = useLanguage();
   const [step, setStep] = useState(1);
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
@@ -65,6 +59,14 @@ export default function Booking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
 
+  // Validation schema for booking form
+  const bookingFormSchema = z.object({
+    name: z.string().trim().min(2, t("validation.nameTooShort")).max(100, t("validation.nameTooLong")),
+    email: z.string().trim().email(t("validation.invalidEmail")).max(255),
+    phone: z.string().trim().regex(/^(\+?[0-9\s\-()]{8,20})?$/, t("validation.invalidPhone")),
+    notes: z.string().max(500, t("validation.notesTooLong")).optional(),
+  });
+
   // Load services from database
   useEffect(() => {
     const fetchServices = async () => {
@@ -75,7 +77,7 @@ export default function Booking() {
         .order("category", { ascending: true });
 
       if (error) {
-        toast.error("Palveluiden lataus epäonnistui");
+        toast.error(t("booking.loadError"));
       } else {
         setServices(data || []);
       }
@@ -83,25 +85,64 @@ export default function Booking() {
     };
 
     fetchServices();
+  }, [t]);
+
+  // Fetch booked slots function (reusable)
+  const fetchBookedSlots = useCallback(async (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .rpc("get_booked_slots", { check_date: dateStr });
+
+    if (!error && data) {
+      setBookedSlots(data.map((slot: { booking_time: string }) => slot.booking_time));
+    }
   }, []);
 
-  // Fetch booked slots when date changes using secure RPC function
+  // Fetch booked slots when date changes
+  useEffect(() => {
+    if (!selectedDate) return;
+    fetchBookedSlots(selectedDate);
+  }, [selectedDate, fetchBookedSlots]);
+
+  // Real-time subscription for booking updates
   useEffect(() => {
     if (!selectedDate) return;
 
-    const fetchBookedSlots = async () => {
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      // Use RPC function that only returns time slots (no customer data)
-      const { data, error } = await supabase
-        .rpc("get_booked_slots", { check_date: dateStr });
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    
+    const channel = supabase
+      .channel('booking-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bookings',
+          filter: `booking_date=eq.${dateStr}`,
+        },
+        (payload) => {
+          // When a new booking is inserted for the selected date, update the booked slots
+          const newBookingTime = payload.new.booking_time as string;
+          setBookedSlots((prev) => {
+            if (!prev.includes(newBookingTime)) {
+              return [...prev, newBookingTime];
+            }
+            return prev;
+          });
+          
+          // If the currently selected time was just booked by someone else, deselect it
+          if (selectedTime === newBookingTime) {
+            setSelectedTime(null);
+            toast.error(t("booking.slotJustBooked"));
+          }
+        }
+      )
+      .subscribe();
 
-      if (!error && data) {
-        setBookedSlots(data.map((slot: { booking_time: string }) => slot.booking_time));
-      }
+    return () => {
+      supabase.removeChannel(channel);
     };
-
-    fetchBookedSlots();
-  }, [selectedDate]);
+  }, [selectedDate, selectedTime, t]);
 
   const selectedServiceData = services.find(s => s.id === selectedService);
 
@@ -136,14 +177,9 @@ export default function Booking() {
         console.error("Booking error:", bookingError);
         // Handle unique constraint violation (double-booking)
         if (bookingError.code === '23505' || bookingError.message?.includes('unique')) {
-          toast.error("Tämä aika on juuri varattu. Valitse toinen aika.");
-          // Refresh available slots using secure RPC function
-          const dateStr = selectedDate.toISOString().split('T')[0];
-          const { data } = await supabase
-            .rpc("get_booked_slots", { check_date: dateStr });
-          if (data) {
-            setBookedSlots(data.map((slot: { booking_time: string }) => slot.booking_time));
-          }
+          toast.error(t("booking.slotJustBooked"));
+          // Refresh available slots
+          await fetchBookedSlots(selectedDate);
           setSelectedTime(null);
           return;
         }
@@ -167,9 +203,9 @@ export default function Booking() {
       });
 
       setStep(4);
-      toast.success("Varaus tehty onnistuneesti!");
+      toast.success(t("booking.success.title"));
     } catch (error: unknown) {
-      toast.error("Varauksen tekeminen epäonnistui. Yritä uudelleen.");
+      toast.error(t("booking.error"));
     } finally {
       setIsSubmitting(false);
     }
@@ -188,16 +224,36 @@ export default function Booking() {
     return `${price.toFixed(0)} €`;
   };
 
+  const formatDateShort = (date: Date) => {
+    const locale = language === 'fi' ? 'fi-FI' : 'en-US';
+    return {
+      weekday: date.toLocaleDateString(locale, { weekday: 'short' }),
+      day: `${date.getDate()}.${date.getMonth() + 1}`,
+    };
+  };
+
+  const formatDateLong = (date: Date) => {
+    const locale = language === 'fi' ? 'fi-FI' : 'en-US';
+    return date.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+  };
+
+  const stepLabels = [
+    { num: 1, label: t("booking.step.service") },
+    { num: 2, label: t("booking.step.time") },
+    { num: 3, label: t("booking.step.details") },
+    { num: 4, label: t("booking.step.done") },
+  ];
+
   return (
     <Layout>
       {/* Hero */}
       <section className="py-12 lg:py-16 bg-gradient-warm">
         <div className="container mx-auto px-4 text-center">
           <h1 className="font-serif text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Varaa aika
+            {t("booking.title")}
           </h1>
           <p className="text-muted-foreground text-lg">
-            Valitse palvelu, aika ja täytä yhteystietosi.
+            {t("booking.subtitle")}
           </p>
         </div>
       </section>
@@ -206,12 +262,7 @@ export default function Booking() {
       <section className="py-8 border-b border-border">
         <div className="container mx-auto px-4">
           <div className="flex justify-center items-center gap-4 md:gap-8">
-            {[
-              { num: 1, label: "Palvelu" },
-              { num: 2, label: "Aika" },
-              { num: 3, label: "Tiedot" },
-              { num: 4, label: "Valmis" },
-            ].map((s, index) => (
+            {stepLabels.map((s, index) => (
               <div key={s.num} className="flex items-center gap-2 md:gap-4">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-colors ${
@@ -241,7 +292,7 @@ export default function Booking() {
           {step === 1 && (
             <div className="animate-fade-in">
               <h2 className="font-serif text-2xl font-bold text-foreground mb-6 text-center">
-                Valitse palvelu
+                {t("booking.selectService")}
               </h2>
               {loadingServices ? (
                 <div className="flex justify-center py-12">
@@ -281,37 +332,40 @@ export default function Booking() {
           {step === 2 && (
             <div className="animate-fade-in">
               <h2 className="font-serif text-2xl font-bold text-foreground mb-6 text-center">
-                Valitse aika
+                {t("booking.selectTime")}
               </h2>
               
               {/* Date Selection */}
               <div className="mb-8">
                 <h3 className="font-medium text-foreground mb-4 flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
-                  Päivämäärä
+                  {t("booking.date")}
                 </h3>
                 <div className="flex gap-3 overflow-x-auto pb-2">
-                  {availableDates.map((date) => (
-                    <button
-                      key={date.toISOString()}
-                      onClick={() => {
-                        setSelectedDate(date);
-                        setSelectedTime(null); // Reset time when date changes
-                      }}
-                      className={`flex-shrink-0 px-4 py-3 rounded-lg text-center border-2 transition-all ${
-                        selectedDate?.toDateString() === date.toDateString()
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/30"
-                      }`}
-                    >
-                      <div className="text-xs text-muted-foreground uppercase">
-                        {date.toLocaleDateString('fi-FI', { weekday: 'short' })}
-                      </div>
-                      <div className="font-semibold text-foreground">
-                        {date.getDate()}.{date.getMonth() + 1}
-                      </div>
-                    </button>
-                  ))}
+                  {availableDates.map((date) => {
+                    const formatted = formatDateShort(date);
+                    return (
+                      <button
+                        key={date.toISOString()}
+                        onClick={() => {
+                          setSelectedDate(date);
+                          setSelectedTime(null);
+                        }}
+                        className={`flex-shrink-0 px-4 py-3 rounded-lg text-center border-2 transition-all ${
+                          selectedDate?.toDateString() === date.toDateString()
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/30"
+                        }`}
+                      >
+                        <div className="text-xs text-muted-foreground uppercase">
+                          {formatted.weekday}
+                        </div>
+                        <div className="font-semibold text-foreground">
+                          {formatted.day}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -320,7 +374,7 @@ export default function Booking() {
                 <div>
                   <h3 className="font-medium text-foreground mb-4 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-primary" />
-                    Kellonaika
+                    {t("booking.time")}
                   </h3>
                   <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                     {timeSlots.map((time) => {
@@ -345,7 +399,7 @@ export default function Booking() {
                   </div>
                   {bookedSlots.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-3">
-                      Yliviivatut ajat ovat jo varattuja.
+                      {t("booking.slotsBooked")}
                     </p>
                   )}
                 </div>
@@ -357,15 +411,15 @@ export default function Booking() {
           {step === 3 && (
             <div className="animate-fade-in">
               <h2 className="font-serif text-2xl font-bold text-foreground mb-6 text-center">
-                Yhteystiedot
+                {t("booking.contactInfo")}
               </h2>
               
               {/* Summary */}
               <div className="bg-primary/5 rounded-xl p-4 mb-8 border border-primary/20">
-                <h3 className="font-medium text-foreground mb-2">Varauksesi:</h3>
+                <h3 className="font-medium text-foreground mb-2">{t("booking.yourBooking")}</h3>
                 <p className="text-muted-foreground">
                   <strong>{selectedServiceData?.name}</strong> – {selectedServiceData && formatPrice(selectedServiceData.price)}<br />
-                  {selectedDate?.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long' })} klo {selectedTime}
+                  {selectedDate && formatDateLong(selectedDate)} {t("booking.at")} {selectedTime}
                 </p>
               </div>
 
@@ -373,19 +427,19 @@ export default function Booking() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     <User className="w-4 h-4 inline mr-2" />
-                    Nimi *
+                    {t("booking.name")} *
                   </label>
                   <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
-                    placeholder="Etunimi Sukunimi"
+                    placeholder="John Doe"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     <Phone className="w-4 h-4 inline mr-2" />
-                    Puhelin *
+                    {t("booking.phone")} *
                   </label>
                   <Input
                     type="tel"
@@ -398,24 +452,24 @@ export default function Booking() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     <Mail className="w-4 h-4 inline mr-2" />
-                    Sähköposti *
+                    {t("booking.email")} *
                   </label>
                   <Input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    placeholder="esimerkki@email.com"
+                    placeholder="example@email.com"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
-                    Lisätiedot (valinnainen)
+                    {t("booking.notes")}
                   </label>
                   <Input
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Esim. erityistoiveita palvelusta"
+                    placeholder={t("booking.notesPlaceholder")}
                   />
                 </div>
               </div>
@@ -429,23 +483,23 @@ export default function Booking() {
                 <Check className="w-10 h-10 text-green-600" />
               </div>
               <h2 className="font-serif text-3xl font-bold text-foreground mb-4">
-                Kiitos varauksestasi!
+                {t("booking.success.title")}
               </h2>
               <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-                Olemme vastaanottaneet varauksesi. Lähetämme vahvistuksen sähköpostiisi ({formData.email}). 
-                Mikäli sinulla on kysyttävää, ota yhteyttä puhelimitse.
+                {t("booking.success.message")} ({formData.email}). 
+                {t("booking.success.contact")}
               </p>
               <div className="bg-card rounded-xl p-6 mb-8 max-w-sm mx-auto text-left border border-border">
-                <h3 className="font-medium text-foreground mb-4">Varauksen tiedot:</h3>
+                <h3 className="font-medium text-foreground mb-4">{t("booking.success.details")}</h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><strong>Palvelu:</strong> {selectedServiceData?.name}</li>
-                  <li><strong>Päivä:</strong> {selectedDate?.toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long' })}</li>
-                  <li><strong>Aika:</strong> {selectedTime}</li>
-                  <li><strong>Nimi:</strong> {formData.name}</li>
+                  <li><strong>{t("booking.success.service")}:</strong> {selectedServiceData?.name}</li>
+                  <li><strong>{t("booking.success.day")}:</strong> {selectedDate && formatDateLong(selectedDate)}</li>
+                  <li><strong>{t("booking.success.time")}:</strong> {selectedTime}</li>
+                  <li><strong>{t("booking.success.name")}:</strong> {formData.name}</li>
                 </ul>
               </div>
               <Button asChild variant="gold" size="lg">
-                <a href="/">Palaa etusivulle</a>
+                <a href="/">{t("booking.success.home")}</a>
               </Button>
             </div>
           )}
@@ -460,7 +514,7 @@ export default function Booking() {
                 className={step === 1 ? "invisible" : ""}
               >
                 <ChevronLeft className="w-4 h-4" />
-                Takaisin
+                {t("booking.back")}
               </Button>
               <Button
                 variant="gold"
@@ -470,9 +524,9 @@ export default function Booking() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Lähetetään...
+                    {t("booking.submitting")}
                   </>
-                ) : step === 3 ? "Vahvista varaus" : "Jatka"}
+                ) : step === 3 ? t("booking.confirm") : t("booking.continue")}
                 {!isSubmitting && <ChevronRight className="w-4 h-4" />}
               </Button>
             </div>
