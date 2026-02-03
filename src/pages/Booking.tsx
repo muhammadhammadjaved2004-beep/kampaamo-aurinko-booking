@@ -120,25 +120,22 @@ export default function Booking() {
     setIsSubmitting(true);
 
     try {
-      // Create booking in database
-      const { data: booking, error: bookingError } = await supabase
-        .from("bookings")
-        .insert({
-          service_id: selectedServiceData.id,
-          customer_name: validatedData.name,
-          customer_email: validatedData.email,
-          customer_phone: validatedData.phone || null,
-          booking_date: selectedDate.toISOString().split('T')[0],
-          booking_time: selectedTime,
-          notes: validatedData.notes || null,
-          status: "pending",
-        })
-        .select()
-        .single();
+      // Create booking using RPC function (bypasses RLS for anonymous users)
+      const { data: bookingId, error: bookingError } = await supabase
+        .rpc("create_booking", {
+          p_service_id: selectedServiceData.id,
+          p_customer_name: validatedData.name,
+          p_customer_email: validatedData.email,
+          p_customer_phone: validatedData.phone || null,
+          p_booking_date: selectedDate.toISOString().split('T')[0],
+          p_booking_time: selectedTime,
+          p_notes: validatedData.notes || null,
+        });
 
       if (bookingError) {
+        console.error("Booking error:", bookingError);
         // Handle unique constraint violation (double-booking)
-        if (bookingError.code === '23505') {
+        if (bookingError.code === '23505' || bookingError.message?.includes('unique')) {
           toast.error("Tämä aika on juuri varattu. Valitse toinen aika.");
           // Refresh available slots using secure RPC function
           const dateStr = selectedDate.toISOString().split('T')[0];
@@ -152,6 +149,8 @@ export default function Booking() {
         }
         throw bookingError;
       }
+
+      const booking = { id: bookingId };
 
       // Send confirmation email (fire and forget - don't block on email)
       supabase.functions.invoke("send-booking-confirmation", {
